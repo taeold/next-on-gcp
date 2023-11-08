@@ -1,8 +1,14 @@
 # Next.js on GCP: The Hard Parts
 
-This is a sample [Next.js](https://nextjs.org/) project to demonstrate how to deploy a Next.js app to GCP with the following features:
+This is a sample [Next.js](https://nextjs.org/) project to demonstrate to deploying a Next.js app on GCP with the following features:
 
-- [Traced output](https://cloud.google.com/trace/docs/trace-output) for [Cloud Trace](https://cloud.google.com/trace)
+[-] Rendering server-side content with Cloud Run
+[ ] Serving static assets from Firebase Hosting
+[ ] Supporting incremental static regeneration (ISR) with Cloud Storage
+[ ] Implementing on demand ISR with Cloud Tasks
+[ ] Image optimization with IPX
+[ ] Version skew protection with pin tags
+
 
 
 ## Deploying on GCP
