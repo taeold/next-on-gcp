@@ -28,5 +28,6 @@ gcloud run deploy nextjs-on-gcp \
   --image us-central1-docker.pkg.dev/MY_PROJECT_ID/run/nextjs-on-gcp \
   --platform managed \
   --region us-central1 \
+  --execution-environment gen2 \
   --allow-unauthenticated
 ```

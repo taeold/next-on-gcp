@@ -1,7 +1,24 @@
-FROM node:18-alpine AS base
+FROM node:18-slim AS base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    lsb-release \
+    tini && \
+    gcsFuseRepo=gcsfuse-`lsb_release -c -s` && \
+    echo "deb https://packages.cloud.google.com/apt $gcsFuseRepo main" | \
+    tee /etc/apt/sources.list.d/gcsfuse.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+    apt-key add - && \
+    apt-get update && \
+    apt-get install -y gcsfuse && \
+    apt-get clean
+
+# Set fallback mount directory
+ENV MNT_DIR /app/.next
 
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -29,8 +46,12 @@ COPY --from=builder /app/public ./public
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
 
+# Upload to cloud storage instead?
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs --chmod=755 /app/gcsfuse_run.sh ./gcsfuse_run.sh
+
 USER nextjs
 ENV HOSTNAME "0.0.0.0"
-CMD ["node", "server.js"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/app/gcsfuse_run.sh"]
