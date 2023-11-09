@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# Create mount directory for service
-mkdir -p $GCS_MNT_DIR
+echo "BUILD_ID: ${BUILD_ID}"
+echo "GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}"
 
 echo "Mounting GCS Fuse."
 gcsfuse \
   --debug_gcs \
   --debug_fuse \
-  --only-dir $GCS_BUCKET_DIR \
+  --only-dir app/$BUILD_ID/.next/server \
+  --implicit-dirs \
   --stat-cache-ttl 10s \
   --type-cache-ttl 10s \
-  $GCS_BUCKET_NAME $GCS_MNT_DIR
+  $GCS_BUCKET_NAME /app/.next/server
+
 echo "Mounting completed."
 
 # Start the application
-node server.js &
+node /app/server.js &
 
 # Exit immediately when one of the background processes terminate.
 wait -n

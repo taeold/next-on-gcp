@@ -15,9 +15,6 @@ RUN apt-get update && apt-get install -y \
     apt-get install -y gcsfuse && \
     apt-get clean
 
-# Set fallback mount directory
-ENV MNT_DIR /app/.next
-
 FROM base AS deps
 WORKDIR /app
 
@@ -38,20 +35,20 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
 COPY --from=builder /app/public ./public
 
 RUN mkdir .next
-RUN chown nextjs:nodejs .next
 
-# Upload to cloud storage instead?
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs --chmod=755 /app/gcsfuse_run.sh ./gcsfuse_run.sh
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --chmod=755 ./gcsfuse_run.sh ./gcsfuse_run.sh
 
-USER nextjs
-ENV HOSTNAME "0.0.0.0"
+ARG BUILD_ID
+ARG GCS_BUCKET_NAME
+ENV BUILD_ID $BUILD_ID
+ENV GCS_BUCKET_NAME $GCS_BUCKET_NAME
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["/app/gcsfuse_run.sh"]
+CMD ["./gcsfuse_run.sh"]
+
+FROM scratch AS export
+COPY --from=runner /app/.next ./.next
