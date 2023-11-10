@@ -10,8 +10,8 @@ gcsfuse \
   --debug_fuse \
   --only-dir app/$BUILD_ID/.next/server \
   --implicit-dirs \
-  --stat-cache-ttl 10s \
-  --type-cache-ttl 10s \
+  --stat-cache-ttl 1s \
+  --type-cache-ttl 1s \
   $GCS_BUCKET_NAME /app/.next/server
 
 echo "Mounting completed."
