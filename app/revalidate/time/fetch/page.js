@@ -11,7 +11,7 @@ export default async function RevlidateFetchPage() {
         <div>A server generated page!</div>
       </div>
       <div className="center big-font">
-        <div>Got UUID: {uuid}</div>
+        <div>{uuid.slice(0, 8)}</div>
       </div>
       <div className="center medium-font">
         <div>(should be regenerated every 10 seconds)</div>

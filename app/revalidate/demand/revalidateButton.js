@@ -8,5 +8,9 @@ export default function RevalidateButton() {
     e.preventDefault();
     await fetch("/api/revalidate", { method: "POST" });
   }
-  return <button onClick={handleClick}>Revalidate</button>;
+  return (
+    <button className="big-font" onClick={handleClick}>
+      Revalidate
+    </button>
+  );
 }
