@@ -45,8 +45,7 @@ COPY --chmod=755 ./gcsfuse_run.sh ./gcsfuse_run.sh
 
 ARG BUILD_ID
 ARG GCS_BUCKET_NAME
-ENV BUILD_ID $BUILD_ID
-ENV GCS_BUCKET_NAME $GCS_BUCKET_NAME
+ENV BUILD_ID=$BUILD_ID GCS_BUCKET_NAME=$GCS_BUCKET_NAME
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["./gcsfuse_run.sh"]
 

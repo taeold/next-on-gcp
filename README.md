@@ -3,8 +3,9 @@
 This is a sample [Next.js](https://nextjs.org/) project to demonstrate to deploying a Next.js app on GCP with the following features:
 
 - [x] Rendering server-side content with Cloud Run
-- [ ] Serving static assets from Firebase Hosting
 - [x] Supporting incremental static regeneration (ISR) with Cloud Storage
+- [ ] Supporting incremental static regeneration (ISR) with RTDB
+- [ ] Serving static assets from Firebase Hosting
 - [ ] Image optimization with IPX
 
 ## Deploying on GCP

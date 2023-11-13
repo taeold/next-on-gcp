@@ -4,6 +4,9 @@ const nextConfig = {
   experimental: {
     isrMemoryCacheSize: 0, // disable default in-memory caching
   },
+  generateBuildId: async () => {
+    return process.env.BUILD_ID || "local-build";
+  },
 };
 
 module.exports = nextConfig;
