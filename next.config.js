@@ -3,7 +3,7 @@ const nextConfig = {
   output: "standalone",
   experimental: {
     isrMemoryCacheSize: 0, // disable default in-memory caching
-    incrementalCacheHandlerPath: "../lib/rtdb-cache-2.js",
+    incrementalCacheHandlerPath: require.resolve("./rtdb-cache-simple.js"),
   },
   generateBuildId: async () => {
     return process.env.BUILD_ID || "local-build";

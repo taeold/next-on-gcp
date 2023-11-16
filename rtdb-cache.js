@@ -2,6 +2,9 @@ const path = require("path");
 const { initializeApp, getApps } = require("firebase-admin/app");
 const { getDatabase, ServerValue } = require("firebase-admin/database");
 
+const invalidChars = /[.\$\#\[\]\/\x00-\x1F\x7F]/g;
+
+
 class RTDBCache {
   constructor(_ctx) {
     if (getApps().length === 0) {
@@ -20,7 +23,7 @@ class RTDBCache {
   }
 
   async set(key, data, ctx) {
-    console.debug("set", { key, data })
+    console.debug("set", { key })
     if (data?.kind === "ROUTE") {
       const { body, status, headers } = data;
       this.putRtdbValue(
@@ -74,7 +77,7 @@ class RTDBCache {
 
     const storedTags = await this.getTagsByPath(key, data.kind);
     const tagsToWrite = derivedTags.filter((tag) => !storedTags.includes(tag));
-    if (tagsToWrite.length > 0) {
+    if (derivedTags.length > 0) {
       await this.setTags(key, data.kind, tagsToWrite);
       await this.refreshTags(tagsToWrite)
     }
@@ -89,11 +92,13 @@ class RTDBCache {
     console.debug("get fetch cache", { key });
     try {
       const value = await this.getRtdbValue(key, "FETCH");
+      console.debug("get fetch cache value", { value })
 
       if (value === null) return null;
 
-      const hasTags = await this.hasStaleTags(key, "FETCH");
-      const lastModified = hasTags ? -1 : (value?.lastModified ?? Date.now());
+      const hasStaleTags = await this.hasStaleTags(key, "FETCH", value.lastModified);
+      const lastModified = hasStaleTags ? -1 : (value.lastModified ?? Date.now());
+      console.debug("get fetch cache last validation status", { hasStaleTags, lastModified })
 
       // If some tags are stale we need to force revalidation
       if (lastModified === -1) {
@@ -102,7 +107,7 @@ class RTDBCache {
 
       return {
         lastModified,
-        value: value.data,
+        value: JSON.parse(value.data),
       };
     } catch (e) {
       console.error("Failed to get fetch cache", e);
@@ -118,7 +123,7 @@ class RTDBCache {
         return null
       }
 
-      const hasTags = await this.hasStaleTags(key);
+      const hasTags = await this.hasStaleTags(key, "cache", value.lastModified);
       const lastModified = hasTags ? -1 : (value?.lastModified ?? Date.now());
 
       if (lastModified === -1) {
@@ -174,14 +179,10 @@ class RTDBCache {
         .ref(this.buildRef(path, extension))
         .child("tags")
         .get()
-      console.debug("tags ref snapshot", snapshot.exists())
-      console.debug("tags ref snapshot", snapshot.hasChildren())
-      console.debug("tags ref snapshot", snapshot.numChildren())
-      console.debug("tags ref snapshot", snapshot.hasChild("tags"))
       const val = snapshot.val()
-      console.debug("tags ref val", val)
-      const tags = Object.keys(val ?? {});
-      console.debug("tags for path", path, tags);
+      const escapedTags = Object.keys(val ?? {});
+      const tags = escapedTags.map((tag) => this.decodeTag(tag));
+      console.debug("tags for path", path, escapedTags);
       return tags;
     } catch (e) {
       console.error("Failed to get tags by path", e);
@@ -192,16 +193,26 @@ class RTDBCache {
   async hasStaleTags(key, extension, lastModified) {
     try {
       const snapshot = await this.rtdb
-        .ref(`${this.buildRef(key, extension)}/tags`)
-        .once("value");
-      const tags = Object.keys(snapshot.val() ?? {});
+        .ref(this.buildRef(key, extension))
+        .child("tags")
+        .get();
+      const escapedTags = Object.keys(snapshot.val() ?? {});
+      const tags = escapedTags.map((tag) => this.decodeTag(tag));
+
+      console.debug("Check stalenss of tags against last modified", { tags, lastModified })
 
       // Filter out tags whose last modified is greater than the last revalidation
       for (const tag of tags) {
-        const { revalidatedAt } = await this.getByTag(tag);
-        if (lastModified < revalidatedAt) {
-          return true;
+        const tagVal = await this.getByTag(tag);
+        console.debug("Checking staleness of tag", tag, tagVal)
+        if (tagVal !== null) {
+          const { revalidatedAt } = tagVal
+          if (lastModified < revalidatedAt) {
+            console.debug("found stale tag", { tag, lastModified, revalidatedAt })
+            return true;
+          }
         }
+        console.debug("tag is not stale", { tag, lastModified, tagVal })
       }
       return false;
     } catch (e) {
@@ -211,6 +222,7 @@ class RTDBCache {
   }
 
   async getByTag(tag) {
+    console.debug("getByTag", tag)
     try {
       const snapshot = await this.rtdb
         .ref(this.buildTagRef(tag))
@@ -224,11 +236,12 @@ class RTDBCache {
 
   async setTags(key, extension, tags) {
     const tagsDict = tags.reduce((acc, tag) => {
-      acc[tag] = true;
+      acc[this.encodeTag(tag)] = true;
       return acc;
     }, {});
-    const snapshot = await this.rtdb
-      .ref(`${this.buildRef(key, extension)}/tags`)
+    await this.rtdb
+      .ref(this.buildRef(key, extension))
+      .child("tags")
       .update(tagsDict)
   }
 
@@ -249,23 +262,29 @@ class RTDBCache {
     };
   }
 
+  sanitizeKey(key) {
+    return encodeURIComponent(key).replace(invalidChars, "_");
+  }
+
   buildRef(key, extension) {
+    const validKey = this.sanitizeKey(key);
     return path.posix.join(
       this.buildId,
       extension === "FETCH" ? "fetch" : "",
-      key
+      validKey
     );
   }
 
   buildTagRef(tag) {
-    return path.posix.join(this.buildId, "tags", tag);
+    const escapedTag = this.sanitizeKey(tag);
+    return path.posix.join(this.buildId, "tags", escapedTag)
   }
 
   async getRtdbValue(key, extension) {
     try {
       const snapshot = await this.rtdb
         .ref(this.buildRef(key, extension))
-        .once("value");
+        .get();
       const result = snapshot.val();
       return result;
     } catch (e) {
@@ -275,7 +294,7 @@ class RTDBCache {
   }
 
   async putRtdbValue(key, extension, data) {
-    await this.rtdb.ref(this.buildRef(key, extension)).set({
+    await this.rtdb.ref(this.buildRef(key, extension)).update({
       data,
       lastModified: ServerValue.TIMESTAMP,
     });
