@@ -10,5 +10,16 @@
       "enabled": true
     },
     "singleProjectMode": true
+  },
+  "hosting": {
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "next-on-gcp"
+        }
+      }
+    ],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
   }
 }
