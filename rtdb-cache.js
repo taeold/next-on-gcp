@@ -22,7 +22,7 @@ class RTDBCache {
       initializeApp();
     }
     this.rtdb = getDatabase();
-    this.buildId = process.env.NEXT_BUILD_ID ?? "deadbeef";
+    this.buildId = process.env.BUILD_ID ?? "deadbeef";
   }
 
   async get(key, options) {

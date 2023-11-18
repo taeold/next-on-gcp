@@ -6,7 +6,7 @@ const nextConfig = {
     incrementalCacheHandlerPath: require.resolve("./rtdb-cache.js"),
   },
   generateBuildId: async () => {
-    return process.env.BUILD_ID || "local-build";
+    return process.env.BUILD_ID || "deadbeef";
   },
 };
 
