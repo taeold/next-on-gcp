@@ -4,11 +4,22 @@ const { getDatabase, ServerValue } = require("firebase-admin/database");
 
 const invalidChars = /[.\$\#\[\]\/\x00-\x1F\x7F]/g;
 
+function encodeTag(tag) {
+  return encodeURIComponent(tag);
+}
+
+function decodeTag(tag) {
+  return decodeURIComponent(tag);
+}
+
+function sanitizeKey(key) {
+  return encodeURIComponent(key).replace(invalidChars, "_");
+}
 
 class RTDBCache {
   constructor(_ctx) {
     if (getApps().length === 0) {
-      initializeApp()
+      initializeApp();
     }
     this.rtdb = getDatabase();
     this.buildId = process.env.NEXT_BUILD_ID ?? "deadbeef";
@@ -23,7 +34,7 @@ class RTDBCache {
   }
 
   async set(key, data, ctx) {
-    console.debug("set", { key })
+    console.debug("set", { key });
     if (data?.kind === "ROUTE") {
       const { body, status, headers } = data;
       this.putRtdbValue(
@@ -79,26 +90,33 @@ class RTDBCache {
     const tagsToWrite = derivedTags.filter((tag) => !storedTags.includes(tag));
     if (derivedTags.length > 0) {
       await this.setTags(key, data.kind, tagsToWrite);
-      await this.refreshTags(tagsToWrite)
+      await this.refreshTags(tagsToWrite);
     }
   }
 
   async revalidateTag(tag) {
     console.debug("revalidateTag", tag);
-    await this.refreshTags([tag])
+    await this.refreshTags([tag]);
   }
 
   async getFetchCache(key) {
     console.debug("get fetch cache", { key });
     try {
       const value = await this.getRtdbValue(key, "FETCH");
-      console.debug("get fetch cache value", { value })
+      console.debug("get fetch cache value", { value });
 
       if (value === null) return null;
 
-      const hasStaleTags = await this.hasStaleTags(key, "FETCH", value.lastModified);
-      const lastModified = hasStaleTags ? -1 : (value.lastModified ?? Date.now());
-      console.debug("get fetch cache last validation status", { hasStaleTags, lastModified })
+      const hasStaleTags = await this.hasStaleTags(
+        key,
+        "FETCH",
+        value.lastModified,
+      );
+      const lastModified = hasStaleTags ? -1 : value.lastModified ?? Date.now();
+      console.debug("get fetch cache last validation status", {
+        hasStaleTags,
+        lastModified,
+      });
 
       // If some tags are stale we need to force revalidation
       if (lastModified === -1) {
@@ -120,11 +138,11 @@ class RTDBCache {
       const value = await this.getRtdbValue(key, "cache");
 
       if (!value) {
-        return null
+        return null;
       }
 
       const hasTags = await this.hasStaleTags(key, "cache", value.lastModified);
-      const lastModified = hasTags ? -1 : (value?.lastModified ?? Date.now());
+      const lastModified = hasTags ? -1 : value?.lastModified ?? Date.now();
 
       if (lastModified === -1) {
         return null;
@@ -173,15 +191,15 @@ class RTDBCache {
   }
 
   async getTagsByPath(path, extension) {
-    console.debug("getTagsByPath", path, extension)
+    console.debug("getTagsByPath", path, extension);
     try {
       const snapshot = await this.rtdb
         .ref(this.buildRef(path, extension))
         .child("tags")
-        .get()
-      const val = snapshot.val()
+        .get();
+      const val = snapshot.val();
       const escapedTags = Object.keys(val ?? {});
-      const tags = escapedTags.map((tag) => this.decodeTag(tag));
+      const tags = escapedTags.map((tag) => decodeTag(tag));
       console.debug("tags for path", path, escapedTags);
       return tags;
     } catch (e) {
@@ -197,37 +215,42 @@ class RTDBCache {
         .child("tags")
         .get();
       const escapedTags = Object.keys(snapshot.val() ?? {});
-      const tags = escapedTags.map((tag) => this.decodeTag(tag));
+      const tags = escapedTags.map((tag) => decodeTag(tag));
 
-      console.debug("Check stalenss of tags against last modified", { tags, lastModified })
+      console.debug("Check stalenss of tags against last modified", {
+        tags,
+        lastModified,
+      });
 
       // Filter out tags whose last modified is greater than the last revalidation
       for (const tag of tags) {
         const tagVal = await this.getByTag(tag);
-        console.debug("Checking staleness of tag", tag, tagVal)
+        console.debug("Checking staleness of tag", tag, tagVal);
         if (tagVal !== null) {
-          const { revalidatedAt } = tagVal
+          const { revalidatedAt } = tagVal;
           if (lastModified < revalidatedAt) {
-            console.debug("found stale tag", { tag, lastModified, revalidatedAt })
+            console.debug("found stale tag", {
+              tag,
+              lastModified,
+              revalidatedAt,
+            });
             return true;
           }
         }
-        console.debug("tag is not stale", { tag, lastModified, tagVal })
+        console.debug("tag is not stale", { tag, lastModified, tagVal });
       }
       return false;
     } catch (e) {
       console.error("Failed to get revalidated tags", e);
-      return false
+      return false;
     }
   }
 
   async getByTag(tag) {
-    console.debug("getByTag", tag)
+    console.debug("getByTag", tag);
     try {
-      const snapshot = await this.rtdb
-        .ref(this.buildTagRef(tag))
-        .get()
-      return snapshot.val()
+      const snapshot = await this.rtdb.ref(this.buildTagRef(tag)).get();
+      return snapshot.val();
     } catch (e) {
       console.error("Failed to get by tag", e);
       return [];
@@ -236,20 +259,22 @@ class RTDBCache {
 
   async setTags(key, extension, tags) {
     const tagsDict = tags.reduce((acc, tag) => {
-      acc[this.encodeTag(tag)] = true;
+      acc[encodeTag(tag)] = true;
       return acc;
     }, {});
     await this.rtdb
       .ref(this.buildRef(key, extension))
       .child("tags")
-      .update(tagsDict)
+      .update(tagsDict);
   }
 
   async refreshTags(tags) {
     try {
       const promises = tags.map(async (tag) => {
-        await this.rtdb.ref(this.buildTagRef(tag)).update(this.buildTagValue(tag));
-      })
+        await this.rtdb
+          .ref(this.buildTagRef(tag))
+          .update(this.buildTagValue(tag));
+      });
       await Promise.all(promises);
     } catch (e) {
       console.error("Failed to refresh tags", e);
@@ -267,24 +292,21 @@ class RTDBCache {
   }
 
   buildRef(key, extension) {
-    const validKey = this.sanitizeKey(key);
     return path.posix.join(
       this.buildId,
       extension === "FETCH" ? "fetch" : "",
-      validKey
+      sanitizeKey(key),
     );
   }
 
   buildTagRef(tag) {
     const escapedTag = this.sanitizeKey(tag);
-    return path.posix.join(this.buildId, "tags", escapedTag)
+    return path.posix.join(this.buildId, "tags", escapedTag);
   }
 
   async getRtdbValue(key, extension) {
     try {
-      const snapshot = await this.rtdb
-        .ref(this.buildRef(key, extension))
-        .get();
+      const snapshot = await this.rtdb.ref(this.buildRef(key, extension)).get();
       const result = snapshot.val();
       return result;
     } catch (e) {
