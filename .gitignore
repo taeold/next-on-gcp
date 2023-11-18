@@ -34,3 +34,5 @@ next-env.d.ts
 
 .firebaserc
 *.log
+# Sensitive file
+service.json

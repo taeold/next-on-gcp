@@ -1,0 +1,25 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "--build-arg",
+        'FIREBASE_CONFIG={"projectId":"$FIREBASE_PROJECT_ID","databaseURL":"$_DATABASE_URL"}',
+        "-t",
+        "us-central1-docker.pkg.dev/$PROJECT_ID/run/nextjs-on-gcp",
+        ".",
+      ]
+    env:
+      - "DOCKER_BUILDKIT=1"
+
+images:
+  - "us-central1-docker.pkg.dev/$PROJECT_ID/run/nextjs-on-gcp"
+
+serviceAccount: "projects/$PROJECT_ID/serviceAccounts/$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+
+options:
+  dynamicSubstitutions: true
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _DATABASE_URL: "https://${PROJECT_ID}-default-rtdb.firebaseio.com"
