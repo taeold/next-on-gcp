@@ -9,20 +9,26 @@ steps:
     env:
       - "NODE_ENV=production"
       - "NEXT_TELEMETRY_DISABLED=1"
-      - "FIREBASE_CONFIG={\"projectId\":\"$PROJECT_ID\",\"databaseURL\":\"$_DATABASE_URL\"}"
-  
+      - 'FIREBASE_CONFIG={"projectId":"$PROJECT_ID","databaseURL":"$_DATABASE_URL"}'
+
   - name: "gcr.io/cloud-builders/docker"
     args:
       [
         "build",
         "--build-arg",
         "BUILD_ID=$BUILD_ID",
-        '--network',
-        'cloudbuild',
+        "--network",
+        "cloudbuild",
         "-t",
         "us-central1-docker.pkg.dev/$PROJECT_ID/run/nextjs-on-gcp",
         ".",
       ]
+
+  - name: "us-central1-docker.pkg.dev/$PROJECT_ID/run/firebase"
+    entrypoint: "bash"
+    args: ["./scripts/firebase-deploy.sh"]
+    env:
+      - "PROJECT_ID=$PROJECT_ID"
 
 images:
   - "us-central1-docker.pkg.dev/$PROJECT_ID/run/nextjs-on-gcp"

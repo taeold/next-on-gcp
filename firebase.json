@@ -12,6 +12,7 @@
     "singleProjectMode": true
   },
   "hosting": {
+    "public": "public",
     "rewrites": [
       {
         "source": "**",

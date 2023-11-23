@@ -1,0 +1,14 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t",
+        "us-central1-docker.pkg.dev/$PROJECT_ID/run/firebase",
+        "-f",
+        "Dockerfile.firebase",
+        ".",
+      ]
+images:
+  - "us-central1-docker.pkg.dev/$PROJECT_ID/run/firebase"
+tags: ["cloud-builders-community"]
