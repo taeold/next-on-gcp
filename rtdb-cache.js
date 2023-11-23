@@ -16,6 +16,10 @@ function sanitizeKey(key) {
   return encodeURIComponent(key).replace(invalidChars, "_");
 }
 
+function lossyDesanitizeKey(key) {
+  return decodeURIComponent(key).replace(/_/g, "/");
+}
+
 class RTDBCache {
   constructor(_ctx) {
     if (getApps().length === 0) {
@@ -23,6 +27,7 @@ class RTDBCache {
     }
     this.rtdb = getDatabase();
     this.buildId = process.env.BUILD_ID ?? "deadbeef";
+    this.publicUrl = process.env.PUBLIC_URL ?? "http://localhost:3000";
   }
 
   async get(key, options) {
@@ -90,13 +95,32 @@ class RTDBCache {
     const tagsToWrite = derivedTags.filter((tag) => !storedTags.includes(tag));
     if (derivedTags.length > 0) {
       await this.setTags(key, data.kind, tagsToWrite);
-      await this.refreshTags(tagsToWrite);
+      await this.refreshTags(
+        tagsToWrite,
+        data.kind !== "FETCH" ? key : undefined,
+      );
     }
   }
 
   async revalidateTag(tag) {
     console.debug("revalidateTag", tag);
     await this.refreshTags([tag]);
+    const paths = await this.getPathsByTag(tag);
+    if (paths.length > 0) {
+      console.debug("PURGE paths", paths);
+      await Promise.all(
+        paths.map(async (path) => {
+          try {
+            await fetch(`${this.publicUrl}${path}`, {
+              method: "PURGE",
+              error: false,
+            });
+          } catch (error) {
+            console.debug("Failed to purge path", path, error);
+          }
+        }),
+      );
+    }
   }
 
   async getFetchCache(key) {
@@ -207,6 +231,23 @@ class RTDBCache {
       return [];
     }
   }
+  async getPathsByTag(tag) {
+    console.debug("getPathsByTag", tag);
+    try {
+      const snapshot = await this.rtdb
+        .ref(this.buildTagRef(tag))
+        .child("paths")
+        .get();
+      const val = snapshot.val();
+      const sanitizePaths = Object.keys(val ?? {});
+      const paths = sanitizePaths.map((path) => lossyDesanitizeKey(path));
+      console.debug("paths for tag", tag, paths);
+      return paths;
+    } catch (e) {
+      console.error("Failed to get tags by path", e);
+      return [];
+    }
+  }
 
   async hasStaleTags(key, extension, lastModified) {
     try {
@@ -268,12 +309,18 @@ class RTDBCache {
       .update(tagsDict);
   }
 
-  async refreshTags(tags) {
+  async refreshTags(tags, path) {
     try {
       const promises = tags.map(async (tag) => {
         await this.rtdb
           .ref(this.buildTagRef(tag))
           .update(this.buildTagValue(tag));
+        if (path) {
+          await this.rtdb
+            .ref(this.buildTagRef(tag))
+            .child("paths")
+            .update({ [sanitizeKey(path)]: true });
+        }
       });
       await Promise.all(promises);
     } catch (e) {
@@ -318,6 +365,7 @@ class RTDBCache {
   async putRtdbValue(key, extension, data) {
     await this.rtdb.ref(this.buildRef(key, extension)).update({
       data,
+      extension,
       lastModified: ServerValue.TIMESTAMP,
     });
   }

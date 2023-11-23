@@ -1,6 +1,6 @@
-import { revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 export async function POST(request) {
-  revalidateTag("httpbin");
+  revalidatePath("/revalidate/demand");
   return new Response("Success!", { status: 200 });
 }

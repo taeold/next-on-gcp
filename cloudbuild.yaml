@@ -1,12 +1,22 @@
 steps:
+  - name: node:18
+    entrypoint: npm
+    args: ["ci"]
+
+  - name: node:18
+    entrypoint: npm
+    args: ["run", "build"]
+    env:
+      - "NODE_ENV=production"
+      - "NEXT_TELEMETRY_DISABLED=1"
+      - "FIREBASE_CONFIG={\"projectId\":\"$PROJECT_ID\",\"databaseURL\":\"$_DATABASE_URL\"}"
+  
   - name: "gcr.io/cloud-builders/docker"
     args:
       [
         "build",
         "--build-arg",
         "BUILD_ID=$BUILD_ID",
-        "--build-arg",
-        "FIREBASE_CONFIG={\"projectId\":\"$PROJECT_ID\",\"databaseURL\":\"$_DATABASE_URL\"}",
         '--network',
         'cloudbuild',
         "-t",
